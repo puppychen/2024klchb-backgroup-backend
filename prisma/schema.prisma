@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  user
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique @default(uuid()) @db.Uuid
+  username  String   @unique
+  password  String
+  name      String
+  email     String
+  role      Role     @default(user)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  uuid         String         @unique @default(uuid()) @db.Uuid
+  lineId       String         @unique @map("line_id")
+  name         String?
+  content      Json?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
+  //
+  Consultation Consultation[]
+  Message      Message[]
+  InviteLine   InviteLine[]
+
+  @@map("users")
+}
+
+model Consultation {
+  id             Int      @id @default(autoincrement())
+  uuid           String   @unique @default(uuid()) @db.Uuid
+  user           User?    @relation(fields: [userId], references: [id])
+  userId         Int?     @map("user_id")
+  lineName       String?  @map("line_name")
+  name           String?
+  phone          String?
+  address        String?
+  childName      String?  @map("child_name")
+  yearSelected   String?  @map("year_selected")
+  weight         String?
+  primaryMedical String?  @map("primary_medical")
+  topicSelected  String?  @map("topic_selected")
+  content        String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([userId], name: "consultations_user_id_index")
+  @@map("consultations")
+}
+
+model Facility {
+  id           Int            @id @default(autoincrement())
+  code         String         @unique
+  name         String
+  isChildCare  Boolean        @default(false) @map("is_child_care")
+  isFluoride   Boolean        @default(false) @map("is_fluoride")
+  type         String?
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  phone        String?
+  email        String?
+  website      String?
+  description  String?
+  serviceInfo  Json?          @map("service_info")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
+  FacilityUser FacilityUser[]
+
+  @@map("facilities")
+}
+
+model FacilityUser {
+  id           Int       @id @default(autoincrement())
+  facilityId   Int?      @map("facility_id")
+  facility     Facility? @relation(fields: [facilityId], references: [id])
+  lineId       String    @unique @map("line_id")
+  lineName     String?   @map("line_name")
+  facilityName String?   @map("facility_name")
+  name         String?
+  position     String?
+  phone        String?
+  checked      Boolean   @default(false)
+  checkedNote  String?   @map("checked_note")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([lineId], name: "facility_users_line_id_index")
+  @@map("facility_users")
+}
+
+model InviteLine {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique @default(uuid()) @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    Int?     @map("user_id")
+  lineId    String   @unique @map("line_id")
+  isInvited Boolean  @default(false) @map("is_invited")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("invite_lines")
+}
+
+model Message {
+  id           Int      @id @default(autoincrement())
+  uuid         String   @unique @default(uuid()) @db.Uuid
+  user         User?    @relation(fields: [userId], references: [id])
+  userId       Int?     @map("user_id")
+  topic        String?
+  year         String?
+  weight       String?
+  startContent String?  @map("start_content")
+  content      String?
+  replyToken   String?  @map("reply_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([updatedAt], name: "messages_updated_at_index")
+  @@map("messages")
+}
