@@ -34,7 +34,7 @@ export class JwtAdminGuard implements CanActivate {
 
       request.user = admin;
       return true;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid token');
     }
   }
