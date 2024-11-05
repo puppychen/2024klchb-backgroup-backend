@@ -1,17 +1,19 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { ConsultationService } from './consultation.service';
 import { Consultation } from './consultation.entity';
+import { JwtAdminGuard } from 'src/auth/jwt-admin.guard';
 
 @Controller('consultation')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAdminGuard)
 export class ConsultationController {
   constructor(private readonly consultationService: ConsultationService) {}
 
   @Get()
   async findAll(): Promise<Partial<Consultation>[]> {
     const consultations = await this.consultationService.findAll();
-    return consultations.map(consultation => this.transformConsultation(consultation));
+    return consultations.map((consultation) =>
+      this.transformConsultation(consultation),
+    );
   }
 
   @Get(':uuid')
@@ -19,7 +21,9 @@ export class ConsultationController {
     return this.consultationService.findOne(uuid);
   }
 
-  private transformConsultation(consultation: Consultation): Partial<Consultation> {
+  private transformConsultation(
+    consultation: Consultation,
+  ): Partial<Consultation> {
     return {
       uuid: consultation.uuid,
       userId: consultation.userId,
