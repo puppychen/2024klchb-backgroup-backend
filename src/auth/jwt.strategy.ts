@@ -14,7 +14,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // 這裡的 payload 是解碼後的 JWT 資料
-    return { userId: payload.sub, username: payload.username };
+    return {
+      uuid: payload.sub,
+      username: payload.username,
+      role: payload.role,
+      name: payload.name,
+    };
   }
 }

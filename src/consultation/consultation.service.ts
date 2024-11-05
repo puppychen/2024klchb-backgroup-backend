@@ -7,7 +7,11 @@ export class ConsultationService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(): Promise<Consultation[]> {
-    return this.prisma.consultation.findMany();
+    return this.prisma.consultation.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
   }
 
   async findOne(uuid: string): Promise<Consultation | null> {

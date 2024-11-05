@@ -31,10 +31,7 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid username or password');
     }
-
-    return {
-      admin,
-    };
+    return admin;
   }
 
   async login(admin: any) {
