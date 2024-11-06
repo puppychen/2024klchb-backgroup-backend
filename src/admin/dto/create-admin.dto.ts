@@ -1,6 +1,7 @@
-export class CreateAdminDto {
-  username: string;
+// src/admin/dto/create-admin.dto.ts
+import { BaseAdminDto } from './base-admin.dto';
+
+export class CreateAdminDto extends BaseAdminDto {
   password: string;
-  name: string;
-  email: string;
+  confirmPassword: string;
 }

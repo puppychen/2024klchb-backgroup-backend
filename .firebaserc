@@ -1,5 +1,12 @@
 {
   "projects": {
     "default": "klchb-backend"
-  }
+  },
+  "targets": {},
+  "etags": {
+    "klchb-backend": {
+      "extensionInstances": {}
+    }
+  },
+  "dataconnectEmulatorConfig": {}
 }
