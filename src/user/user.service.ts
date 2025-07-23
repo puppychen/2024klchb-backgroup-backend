@@ -2,8 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { User, Children, Note } from '@prisma/client';
 import {
-  CreateUserDto,
-  UpdateUserDto,
   CreateChildDto,
   UpdateChildDto,
   CreateNoteDto,
@@ -179,6 +177,15 @@ export class UserService {
       throw new NotFoundException('Note not found');
     }
 
+    await this.prisma.noteEditHistory.create({
+      data: {
+        noteId: note.id,
+        accessTokenId: note.accessTokenId,
+        beforeContent: note.content,
+        afterContent: data.content,
+      },
+    });
+
     return this.prisma.note.update({
       where: { uuid: noteUuid },
       data,
@@ -199,6 +206,15 @@ export class UserService {
     if (!note) {
       throw new NotFoundException('Note not found');
     }
+
+    await this.prisma.noteEditHistory.create({
+      data: {
+        noteId: note.id,
+        accessTokenId: note.accessTokenId,
+        beforeContent: note.content,
+        afterContent: '刪除!!',
+      },
+    });
 
     return this.prisma.note.update({
       where: { uuid: noteUuid },
