@@ -1,6 +1,9 @@
 export class Consultation {
   uuid: string;
   userId: number;
+  user?: {
+    uuid: string;
+  };
   lineName: string;
   name: string;
   phone: string;

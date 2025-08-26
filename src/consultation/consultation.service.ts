@@ -8,6 +8,13 @@ export class ConsultationService {
 
   async findAll(): Promise<Consultation[]> {
     return this.prisma.consultation.findMany({
+      include: {
+        user: {
+          select: {
+            uuid: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },

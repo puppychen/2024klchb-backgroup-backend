@@ -88,8 +88,9 @@ export class AuthService {
     const admin = await this.prisma.admin.findUnique({
       where: { uuid },
     });
-    const { id, password, ...adminProfile } = admin;
-    return adminProfile;
+    delete admin.password;
+    delete admin.id;
+    return admin;
   }
 
   async updateAdminProfile(

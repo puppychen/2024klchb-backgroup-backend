@@ -3,13 +3,30 @@ import { ConsultationService } from './consultation.service';
 import { Consultation } from './consultation.entity';
 import { JwtAdminGuard } from 'src/auth/jwt-admin.guard';
 
+interface ConsultationResponse {
+  uuid: string;
+  userUuid?: string;
+  lineName: string;
+  name: string;
+  phone: string;
+  address: string;
+  childName: string;
+  yearSelected: string;
+  weight: string;
+  primaryMedical: string;
+  topicSelected: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Controller('consultation')
 @UseGuards(JwtAdminGuard)
 export class ConsultationController {
   constructor(private readonly consultationService: ConsultationService) {}
 
   @Get()
-  async findAll(): Promise<Partial<Consultation>[]> {
+  async findAll(): Promise<ConsultationResponse[]> {
     const consultations = await this.consultationService.findAll();
     return consultations.map((consultation) =>
       this.transformConsultation(consultation),
@@ -23,10 +40,10 @@ export class ConsultationController {
 
   private transformConsultation(
     consultation: Consultation,
-  ): Partial<Consultation> {
+  ): ConsultationResponse {
     return {
       uuid: consultation.uuid,
-      userId: consultation.userId,
+      userUuid: consultation.user?.uuid,
       lineName: consultation.lineName,
       name: this.anonymizeName(consultation.name),
       phone: this.anonymizePhone(consultation.phone),
