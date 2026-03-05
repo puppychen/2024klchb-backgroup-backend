@@ -78,9 +78,17 @@ export class UserResponseDto {
   @Expose()
   name: string | null;
 
+  @ApiProperty({ description: 'LINE 頭像 URL', nullable: true })
+  @Expose()
+  pictureUrl: string | null;
+
   @ApiProperty({ description: '用戶附加資料', nullable: true })
   @Expose()
   content: any | null;
+
+  @ApiProperty({ description: '來源關鍵字', nullable: true })
+  @Expose()
+  sourceKeyword: string | null;
 
   @ApiProperty({ description: '建立時間' })
   @Expose()

@@ -37,7 +37,10 @@ model User {
   uuid            String            @unique @default(uuid()) @db.Uuid
   lineId          String            @unique @map("line_id")
   name            String?
+  pictureUrl      String?           @map("picture_url")
   content         Json?
+  sourceKeyword   String?           @map("source_keyword")
+  sourceKeywordAt DateTime?         @map("source_keyword_at")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
   //
@@ -90,24 +93,25 @@ model Consultation {
 }
 
 model Facility {
-  id           Int            @id @default(autoincrement())
-  code         String         @unique
-  name         String
-  isChildCare  Boolean        @default(false) @map("is_child_care")
-  isFluoride   Boolean        @default(false) @map("is_fluoride")
-  type         String?
-  address      String?
-  city         String?
-  state        String?
-  zip          String?
-  phone        String?
-  email        String?
-  website      String?
-  description  String?
-  serviceInfo  Json?          @map("service_info")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
-  FacilityUser FacilityUser[]
+  id                 Int            @id @default(autoincrement())
+  code               String         @unique
+  name               String
+  isChildCare        Boolean        @default(false) @map("is_child_care")
+  isFluoride         Boolean        @default(false) @map("is_fluoride")
+  isChildDevelopment Boolean        @default(false) @map("is_child_development")
+  type               String?
+  address            String?
+  city               String?
+  state              String?
+  zip                String?
+  phone              String?
+  email              String?
+  website            String?
+  description        String?
+  serviceInfo        Json?          @map("service_info")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at")
+  FacilityUser       FacilityUser[]
 
   @@map("facilities")
 }
@@ -240,4 +244,19 @@ model NoteEditHistory {
   @@index([noteId], name: "note_edit_history_note_id_index")
   @@index([accessTokenId], name: "note_edit_history_access_token_id_index")
   @@map("note_edit_history")
+}
+
+// ===== Source Keyword Model =====
+
+model SourceKeyword {
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique @default(uuid()) @db.Uuid
+  keyword     String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("source_keywords")
 }

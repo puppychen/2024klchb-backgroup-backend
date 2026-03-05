@@ -45,6 +45,13 @@ export class UserController {
     return UserResponseDto.fromArray(users);
   }
 
+  @ApiOperation({ summary: '取得有來源關聯的使用者列表' })
+  @ApiResponse({ status: 200, description: '成功取得來源使用者列表' })
+  @Get('source-users')
+  async findSourceUsers() {
+    return this.userService.findSourceUsers();
+  }
+
   @ApiOperation({ summary: '根據 UUID 取得單一用戶資料' })
   @ApiParam({ name: 'uuid', description: '用戶 UUID' })
   @ApiResponse({

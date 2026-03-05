@@ -12,8 +12,47 @@ import {
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
+  async findSourceUsers() {
+    // 1. 查詢有 sourceKeyword 的 users，依關聯時間倒序
+    const users = await this.prisma.user.findMany({
+      where: { sourceKeyword: { not: null } },
+      orderBy: [
+        { sourceKeywordAt: { sort: 'desc', nulls: 'last' } },
+      ],
+      select: {
+        uuid: true,
+        lineId: true,
+        name: true,
+        content: true,
+        sourceKeyword: true,
+        sourceKeywordAt: true,
+        createdAt: true,
+      },
+    });
+
+    // 2. 批次查 source_keywords 取 name mapping
+    const keywords = [...new Set(users.map(u => u.sourceKeyword!))];
+    const sources = await this.prisma.sourceKeyword.findMany({
+      where: { keyword: { in: keywords } },
+      select: { keyword: true, name: true },
+    });
+    const sourceNameMap = new Map(sources.map(s => [s.keyword, s.name]));
+
+    // 3. 組合回傳
+    return users.map(u => ({
+      uuid: u.uuid,
+      lineId: u.lineId,
+      userName: (u.content as any)?.name || u.name || null,
+      sourceKeyword: u.sourceKeyword,
+      sourceName: sourceNameMap.get(u.sourceKeyword!) || u.sourceKeyword,
+      sourceKeywordAt: u.sourceKeywordAt,
+      createdAt: u.createdAt,
+    }));
+  }
+
   async findAll(): Promise<User[]> {
     return this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
       include: {
         Children: true,
         Note: {
