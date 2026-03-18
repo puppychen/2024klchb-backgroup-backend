@@ -42,7 +42,7 @@ export class UserService {
     return users.map(u => ({
       uuid: u.uuid,
       lineId: u.lineId,
-      userName: (u.content as any)?.name || u.name || null,
+      lineName: u.name || null,
       sourceKeyword: u.sourceKeyword,
       sourceName: sourceNameMap.get(u.sourceKeyword!) || u.sourceKeyword,
       sourceKeywordAt: u.sourceKeywordAt,
@@ -50,8 +50,8 @@ export class UserService {
     }));
   }
 
-  async findAll(): Promise<User[]> {
-    return this.prisma.user.findMany({
+  async findAll() {
+    const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         Children: true,
@@ -62,6 +62,22 @@ export class UserService {
         },
       },
     });
+
+    // 批次查 source_keywords 取 name mapping
+    const keywords = [...new Set(users.map(u => u.sourceKeyword).filter(Boolean))] as string[];
+    const sourceNameMap = new Map<string, string>();
+    if (keywords.length > 0) {
+      const sources = await this.prisma.sourceKeyword.findMany({
+        where: { keyword: { in: keywords } },
+        select: { keyword: true, name: true },
+      });
+      sources.forEach(s => sourceNameMap.set(s.keyword, s.name));
+    }
+
+    return users.map(u => ({
+      ...u,
+      sourceName: u.sourceKeyword ? (sourceNameMap.get(u.sourceKeyword) || null) : null,
+    }));
   }
 
   async findOne(uuid: string): Promise<User> {

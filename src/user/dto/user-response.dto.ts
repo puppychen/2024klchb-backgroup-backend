@@ -90,6 +90,10 @@ export class UserResponseDto {
   @Expose()
   sourceKeyword: string | null;
 
+  @ApiProperty({ description: '來源機構名稱', nullable: true })
+  @Expose()
+  sourceName: string | null;
+
   @ApiProperty({ description: '建立時間' })
   @Expose()
   createdAt: Date;
