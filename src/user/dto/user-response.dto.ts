@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Transform,
+  Type,
+  plainToInstance,
+} from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '@prisma/client';
 
@@ -84,6 +90,7 @@ export class UserResponseDto {
 
   @ApiProperty({ description: '用戶附加資料', nullable: true })
   @Expose()
+  @Transform(({ obj }) => obj.content)
   content: any | null;
 
   @ApiProperty({ description: '來源關鍵字', nullable: true })
