@@ -46,15 +46,18 @@ export class UserService {
     const sourceNameMap = new Map(sources.map((s) => [s.keyword, s.name]));
 
     // 3. 組合回傳
-    return users.map((u) => ({
-      uuid: u.uuid,
-      lineId: u.lineId,
-      lineName: u.name || null,
-      sourceKeyword: u.sourceKeyword,
-      sourceName: sourceNameMap.get(u.sourceKeyword!) || u.sourceKeyword,
-      sourceKeywordAt: u.sourceKeywordAt,
-      createdAt: u.createdAt,
-    }));
+    return users.map((u) => {
+      const content = u.content as Record<string, any> | null;
+      return {
+        uuid: u.uuid,
+        lineId: u.lineId,
+        lineName: u.name || content?.profile?.displayName || null,
+        sourceKeyword: u.sourceKeyword,
+        sourceName: sourceNameMap.get(u.sourceKeyword!) || u.sourceKeyword,
+        sourceKeywordAt: u.sourceKeywordAt,
+        createdAt: u.createdAt,
+      };
+    });
   }
 
   async findAll() {
@@ -94,7 +97,7 @@ export class UserService {
     }));
   }
 
-  private static readonly BACKFILL_BATCH_LIMIT = 30;
+  private static readonly BACKFILL_BATCH_LIMIT = 15;
 
   /**
    * 對 name 為 null 的使用者，補回 LINE 名稱。
@@ -147,7 +150,9 @@ export class UserService {
       return;
     }
 
-    const batch = stillMissing.slice(0, UserService.BACKFILL_BATCH_LIMIT);
+    // 隨機抽樣，避免每次都取到同一批無法取得的使用者
+    const shuffled = [...stillMissing].sort(() => Math.random() - 0.5);
+    const batch = shuffled.slice(0, UserService.BACKFILL_BATCH_LIMIT);
 
     if (stillMissing.length > UserService.BACKFILL_BATCH_LIMIT) {
       this.logger.log(
