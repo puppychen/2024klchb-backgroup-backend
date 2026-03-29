@@ -20,7 +20,9 @@ export class SourceKeywordLogResponseDto {
   userPictureUrl!: string | null;
 
   static from(data: any): SourceKeywordLogResponseDto {
-    return plainToInstance(SourceKeywordLogResponseDto, data, { strategy: 'excludeAll' });
+    return plainToInstance(SourceKeywordLogResponseDto, data, {
+      strategy: 'excludeAll',
+    });
   }
 
   static fromArray(data: any[]): SourceKeywordLogResponseDto[] {
