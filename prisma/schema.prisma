@@ -50,7 +50,8 @@ model User {
   Children        Children[]
   VaccineNotify   VaccineNotify[]
   Note            Note[]
-  NoteAccessToken NoteAccessToken[]
+  NoteAccessToken    NoteAccessToken[]
+  SourceKeywordLog   SourceKeywordLog[]
 
   @@map("users")
 }
@@ -244,6 +245,26 @@ model NoteEditHistory {
   @@index([noteId], name: "note_edit_history_note_id_index")
   @@index([accessTokenId], name: "note_edit_history_access_token_id_index")
   @@map("note_edit_history")
+}
+
+// ===== Source Keyword Log =====
+
+model SourceKeywordLog {
+  id            Int      @id @default(autoincrement())
+  uuid          String   @unique @default(uuid()) @db.Uuid
+  userId        Int      @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+  lineId        String   @map("line_id")
+  action        String
+  newKeyword    String   @map("new_keyword")
+  newSourceName String   @map("new_source_name")
+  oldKeyword    String?  @map("old_keyword")
+  oldSourceName String?  @map("old_source_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "source_keyword_log_user_id_index")
+  @@index([lineId], name: "source_keyword_log_line_id_index")
+  @@map("source_keyword_logs")
 }
 
 // ===== Source Keyword Model =====
