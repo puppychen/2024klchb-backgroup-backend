@@ -49,6 +49,7 @@ model User {
   InviteLine      InviteLine[]
   Children        Children[]
   VaccineNotify   VaccineNotify[]
+  VaccineNotifySendLog VaccineNotifySendLog[]
   Note            Note[]
   NoteAccessToken    NoteAccessToken[]
   SourceKeywordLog   SourceKeywordLog[]
@@ -66,6 +67,8 @@ model Children {
   months    Int
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  VaccineNotify   VaccineNotify[]
+  VaccineNotifySendLog VaccineNotifySendLog[]
 
   @@index([userId], name: "children_user_id_index")
   @@map("children")
@@ -179,20 +182,56 @@ model Vaccine {
 }
 
 model VaccineNotify {
-  id          Int       @id @default(autoincrement())
-  uuid        String    @unique @default(uuid()) @db.Uuid
-  userId      Int       @map("user_id")
-  user        User?     @relation(fields: [userId], references: [id])
-  name        String // Child's name
-  vaccineName String    @map("vaccine_name")
-  months      Int // Age in months when notification is triggered
-  birthday    String
-  notifyAt    DateTime? @map("notify_at") // When notification was sent, null if not sent yet
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+  id             Int                    @id @default(autoincrement())
+  uuid           String                 @unique @default(uuid()) @db.Uuid
+  userId         Int                    @map("user_id")
+  user           User?                  @relation(fields: [userId], references: [id])
+  childId        Int?                   @map("child_id")
+  child          Children?              @relation(fields: [childId], references: [id])
+  name           String // Child's name
+  vaccineName    String                 @map("vaccine_name")
+  months         Int // Age in months when notification is triggered
+  birthday       String
+  cycleYearMonth String?                @map("cycle_year_month")
+  status         String                 @default("pending")
+  sendBatchId    String?                @map("send_batch_id")
+  notifyAt       DateTime?              @map("notify_at") // When notification was sent, null if not sent yet
+  sentAt         DateTime?              @map("sent_at")
+  attemptedAt    DateTime?              @map("attempted_at")
+  attemptCount   Int                    @default(0) @map("attempt_count")
+  message        String?
+  errorMessage   String?                @map("error_message")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @default(now()) @updatedAt @map("updated_at")
+  SendLogs       VaccineNotifySendLog[]
 
   @@index([userId], name: "vaccine_notify_user_id_index")
+  @@index([childId], name: "vaccine_notify_child_id_index")
+  @@index([cycleYearMonth, status], name: "vaccine_notify_cycle_status_index")
+  @@index([sendBatchId], name: "vaccine_notify_send_batch_id_index")
   @@map("vaccine_notifies")
+}
+
+model VaccineNotifySendLog {
+  id              Int           @id @default(autoincrement())
+  uuid            String        @unique @default(uuid()) @db.Uuid
+  vaccineNotifyId Int           @map("vaccine_notify_id")
+  vaccineNotify   VaccineNotify @relation(fields: [vaccineNotifyId], references: [id], onDelete: Cascade)
+  userId          Int           @map("user_id")
+  user            User          @relation(fields: [userId], references: [id])
+  childId         Int?          @map("child_id")
+  child           Children?     @relation(fields: [childId], references: [id])
+  lineId          String        @map("line_id")
+  sendBatchId     String        @map("send_batch_id")
+  message         String?
+  status          String
+  errorMessage    String?       @map("error_message")
+  sentAt          DateTime?     @map("sent_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([sendBatchId], name: "vaccine_notify_send_logs_batch_index")
+  @@index([userId, childId], name: "vaccine_notify_send_logs_user_child_index")
+  @@map("vaccine_notify_send_logs")
 }
 
 model Note {

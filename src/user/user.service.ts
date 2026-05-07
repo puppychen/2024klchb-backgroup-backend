@@ -9,6 +9,7 @@ import {
   UpdateChildDto,
   CreateNoteDto,
   UpdateNoteDto,
+  VaccineNotifyLogResponseDto,
 } from './dto';
 
 @Injectable()
@@ -89,12 +90,166 @@ export class UserService {
       sources.forEach((s) => sourceNameMap.set(s.keyword, s.name));
     }
 
+    const userIds = users.map((u) => u.id);
+    const vaccineNotifyLogCountMap = new Map<number, number>();
+    if (userIds.length > 0) {
+      const vaccineNotifyLogCounts =
+        await this.prisma.vaccineNotifySendLog.groupBy({
+          by: ['userId'],
+          where: {
+            userId: { in: userIds },
+            childId: { not: null },
+            child: { isNot: null },
+          },
+          _count: {
+            _all: true,
+          },
+        });
+
+      vaccineNotifyLogCounts.forEach((count) => {
+        vaccineNotifyLogCountMap.set(count.userId, count._count._all);
+      });
+    }
+
     return users.map((u) => ({
       ...u,
       sourceName: u.sourceKeyword
         ? sourceNameMap.get(u.sourceKeyword) || null
         : null,
+      vaccineNotifyLogCount: vaccineNotifyLogCountMap.get(u.id) || 0,
     }));
+  }
+
+  async findVaccineNotifyLogs(): Promise<VaccineNotifyLogResponseDto[]> {
+    return this.getGroupedVaccineNotifyLogs();
+  }
+
+  async findUserVaccineNotifyLogs(
+    userUuid: string,
+  ): Promise<VaccineNotifyLogResponseDto[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { uuid: userUuid },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.getGroupedVaccineNotifyLogs(user.id);
+  }
+
+  private async getGroupedVaccineNotifyLogs(
+    userId?: number,
+  ): Promise<VaccineNotifyLogResponseDto[]> {
+    const logs = await this.prisma.vaccineNotifySendLog.findMany({
+      where: {
+        ...(userId ? { userId } : {}),
+        childId: { not: null },
+        child: { isNot: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            uuid: true,
+            lineId: true,
+            name: true,
+            content: true,
+          },
+        },
+        child: {
+          select: {
+            uuid: true,
+            name: true,
+            birthday: true,
+          },
+        },
+        vaccineNotify: {
+          select: {
+            uuid: true,
+            vaccineName: true,
+            cycleYearMonth: true,
+            attemptCount: true,
+            attemptedAt: true,
+          },
+        },
+      },
+    });
+
+    const groupedLogs = new Map<string, VaccineNotifyLogResponseDto>();
+
+    for (const log of logs) {
+      if (!log.child) {
+        continue;
+      }
+
+      const groupKey = [
+        log.sendBatchId,
+        log.user.uuid,
+        log.child.uuid,
+        log.status,
+        log.sentAt?.toISOString() || '',
+        log.message || '',
+        log.errorMessage || '',
+      ].join('|');
+
+      const userContent = log.user.content as Record<string, any> | null;
+      const userName =
+        log.user.name || userContent?.profile?.displayName || null;
+      const childBirthYear = this.extractBirthYear(log.child.birthday);
+
+      if (!groupedLogs.has(groupKey)) {
+        groupedLogs.set(groupKey, {
+          id: groupKey,
+          sendBatchId: log.sendBatchId,
+          status: log.status,
+          message: log.message,
+          errorMessage: log.errorMessage,
+          sentAt: log.sentAt,
+          createdAt: log.createdAt,
+          lineId: log.lineId,
+          userUuid: log.user.uuid,
+          userLineId: log.user.lineId,
+          userName,
+          childUuid: log.child.uuid,
+          childName: log.child.name,
+          childBirthday: log.child.birthday,
+          childBirthYear,
+          vaccineNames: [],
+          vaccineNotifyUuids: [],
+          cycleYearMonth: log.vaccineNotify.cycleYearMonth,
+          attemptCount: log.vaccineNotify.attemptCount,
+          attemptedAt: log.vaccineNotify.attemptedAt,
+        });
+      }
+
+      const groupedLog = groupedLogs.get(groupKey)!;
+      if (!groupedLog.vaccineNames.includes(log.vaccineNotify.vaccineName)) {
+        groupedLog.vaccineNames.push(log.vaccineNotify.vaccineName);
+      }
+      if (!groupedLog.vaccineNotifyUuids.includes(log.vaccineNotify.uuid)) {
+        groupedLog.vaccineNotifyUuids.push(log.vaccineNotify.uuid);
+      }
+      groupedLog.attemptCount = Math.max(
+        groupedLog.attemptCount,
+        log.vaccineNotify.attemptCount,
+      );
+      if (
+        log.vaccineNotify.attemptedAt &&
+        (!groupedLog.attemptedAt ||
+          log.vaccineNotify.attemptedAt > groupedLog.attemptedAt)
+      ) {
+        groupedLog.attemptedAt = log.vaccineNotify.attemptedAt;
+      }
+    }
+
+    return [...groupedLogs.values()];
+  }
+
+  private extractBirthYear(birthday: string): string | null {
+    const match = birthday.match(/^(\d{4})/);
+    return match ? match[1] : null;
   }
 
   private static readonly BACKFILL_BATCH_LIMIT = 15;

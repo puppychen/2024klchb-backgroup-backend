@@ -23,6 +23,7 @@ import {
   UpdateNoteDto,
   UserResponseDto,
   NoteResponseDto,
+  VaccineNotifyLogResponseDto,
 } from './dto';
 import { JwtAdminGuard } from '../auth/jwt-admin.guard';
 
@@ -50,6 +51,30 @@ export class UserController {
   @Get('source-users')
   async findSourceUsers() {
     return this.userService.findSourceUsers();
+  }
+
+  @ApiOperation({ summary: '取得疫苗提醒發送記錄' })
+  @ApiResponse({
+    status: 200,
+    description: '成功取得疫苗提醒發送記錄',
+    type: [VaccineNotifyLogResponseDto],
+  })
+  @Get('vaccine-notify-logs')
+  async findVaccineNotifyLogs() {
+    return this.userService.findVaccineNotifyLogs();
+  }
+
+  @ApiOperation({ summary: '取得指定用戶的疫苗提醒發送記錄' })
+  @ApiParam({ name: 'uuid', description: '用戶 UUID' })
+  @ApiResponse({
+    status: 200,
+    description: '成功取得用戶疫苗提醒發送記錄',
+    type: [VaccineNotifyLogResponseDto],
+  })
+  @ApiResponse({ status: 404, description: '找不到用戶' })
+  @Get(':uuid/vaccine-notify-logs')
+  async findUserVaccineNotifyLogs(@Param('uuid') uuid: string) {
+    return this.userService.findUserVaccineNotifyLogs(uuid);
   }
 
   @ApiOperation({ summary: '根據 UUID 取得單一用戶資料' })

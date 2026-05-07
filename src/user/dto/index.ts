@@ -7,3 +7,4 @@ export * from './update-note.dto';
 export * from './user-response.dto';
 export * from './note-response.dto';
 export * from './note-edit-history-response.dto';
+export * from './vaccine-notify-log-response.dto';

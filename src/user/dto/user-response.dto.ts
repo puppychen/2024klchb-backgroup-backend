@@ -101,6 +101,10 @@ export class UserResponseDto {
   @Expose()
   sourceName: string | null;
 
+  @ApiProperty({ description: '可追蹤疫苗提醒發送記錄數' })
+  @Expose()
+  vaccineNotifyLogCount: number;
+
   @ApiProperty({ description: '建立時間' })
   @Expose()
   createdAt: Date;
