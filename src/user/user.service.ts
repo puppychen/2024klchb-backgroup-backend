@@ -4,13 +4,42 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma.service';
 import { User, Children, Note } from '@prisma/client';
+import { AttachmentUrlService } from './attachment-url.service';
 import {
+  ChatMessagesPageResponseDto,
+  ChatAttachmentResponseDto,
+  ChatMessageResponseDto,
   CreateChildDto,
   UpdateChildDto,
   CreateNoteDto,
   UpdateNoteDto,
   VaccineNotifyLogResponseDto,
 } from './dto';
+
+type CountDateStats = {
+  count: number;
+  latestAt: Date | null;
+};
+
+type ChatRoomSummary = {
+  id: number;
+  uuid: string;
+  title: string | null;
+  userId: number;
+};
+
+type ChatAttachmentRecord = {
+  id: number;
+  uuid: string;
+  fileName: string;
+  fileSize: number | null;
+  fileType: string | null;
+  attachmentType: string;
+  status: string;
+  downloadUrl: string | null;
+  downloadUrlExpires: Date | null;
+  storagePath: string | null;
+};
 
 @Injectable()
 export class UserService {
@@ -20,6 +49,7 @@ export class UserService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private httpService: HttpService,
+    private attachmentUrlService: AttachmentUrlService,
   ) {}
 
   async findSourceUsers() {
@@ -91,33 +121,436 @@ export class UserService {
     }
 
     const userIds = users.map((u) => u.id);
-    const vaccineNotifyLogCountMap = new Map<number, number>();
-    if (userIds.length > 0) {
-      const vaccineNotifyLogCounts =
-        await this.prisma.vaccineNotifySendLog.groupBy({
-          by: ['userId'],
-          where: {
-            userId: { in: userIds },
-            childId: { not: null },
-            child: { isNot: null },
-          },
-          _count: {
-            _all: true,
-          },
-        });
+    const [
+      vaccineNotifyLogCountMap,
+      chatRooms,
+      directConsultationStats,
+    ] = await Promise.all([
+      this.getVaccineNotifyLogCountMap(userIds),
+      this.getChatRoomsByUserIds(userIds),
+      this.getDirectConsultationStatsMap(userIds),
+    ]);
+    const [roomConsultationStats, chatMessageStats] = await Promise.all([
+      this.getRoomConsultationStatsMap(chatRooms),
+      this.getChatMessageStatsMap(chatRooms),
+    ]);
+    const consultationStats = this.mergeStatsMaps(
+      directConsultationStats,
+      roomConsultationStats,
+    );
 
-      vaccineNotifyLogCounts.forEach((count) => {
-        vaccineNotifyLogCountMap.set(count.userId, count._count._all);
+    return users
+      .map((u) => {
+        const userConsultationStats = consultationStats.get(u.id);
+        const userChatMessageStats = chatMessageStats.get(u.id);
+
+        return {
+          ...u,
+          sourceName: u.sourceKeyword
+            ? sourceNameMap.get(u.sourceKeyword) || null
+            : null,
+          vaccineNotifyLogCount: vaccineNotifyLogCountMap.get(u.id) || 0,
+          consultationCount: userConsultationStats?.count || 0,
+          latestConsultationAt: userConsultationStats?.latestAt || null,
+          chatMessageCount: userChatMessageStats?.count || 0,
+          latestChatMessageAt: userChatMessageStats?.latestAt || null,
+        };
+      })
+      // TODO: 用戶量大時改為 DB-level ORDER BY；目前 findAll 已 load 全部用戶含
+      // Children / Note，in-memory sort 不額外增加負擔。
+      .sort((a, b) => {
+        const latestA = a.latestConsultationAt?.getTime() || null;
+        const latestB = b.latestConsultationAt?.getTime() || null;
+        if (latestA !== latestB) {
+          if (latestA === null) return 1;
+          if (latestB === null) return -1;
+          return latestB - latestA;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
       });
+  }
+
+  async findUserChatMessages(
+    userUuid: string,
+    adminUuid: string,
+    limit = 100,
+    before?: string,
+  ): Promise<ChatMessagesPageResponseDto> {
+    this.logger.log(`admin ${adminUuid} 查 user ${userUuid} chat history`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { uuid: userUuid },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    return users.map((u) => ({
-      ...u,
-      sourceName: u.sourceKeyword
-        ? sourceNameMap.get(u.sourceKeyword) || null
+    const rooms = await this.prisma.chatRoom.findMany({
+      where: { userId: user.id },
+      select: { id: true, uuid: true, title: true, userId: true },
+    });
+
+    if (rooms.length === 0) {
+      return {
+        items: [],
+        hasMore: false,
+        nextCursor: null,
+      };
+    }
+
+    const safeLimit = Math.min(Math.max(limit || 100, 1), 100);
+    const roomIds = rooms.map((room) => room.id);
+    const cursorMessage = before
+      ? await this.prisma.chatRoomMessage.findUnique({
+          where: { uuid: before },
+          select: { id: true, createdAt: true, chatRoomId: true },
+        })
+      : null;
+    const validCursor =
+      cursorMessage && roomIds.includes(cursorMessage.chatRoomId)
+        ? cursorMessage
+        : null;
+
+    const messages = await this.prisma.chatRoomMessage.findMany({
+      where: {
+        chatRoomId: { in: roomIds },
+        isDeleted: false,
+        ...(validCursor
+          ? {
+              OR: [
+                { createdAt: { lt: validCursor.createdAt } },
+                {
+                  createdAt: validCursor.createdAt,
+                  id: { lt: validCursor.id },
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: safeLimit + 1,
+      include: {
+        chatRoom: {
+          select: { uuid: true, title: true },
+        },
+        senderUser: {
+          select: { uuid: true, name: true, content: true },
+        },
+        senderConsultant: {
+          select: { uuid: true, name: true },
+        },
+        ChatRoomAttachment: {
+          select: {
+            id: true,
+            uuid: true,
+            fileName: true,
+            fileSize: true,
+            fileType: true,
+            attachmentType: true,
+            status: true,
+            downloadUrl: true,
+            downloadUrlExpires: true,
+            storagePath: true,
+          },
+        },
+      },
+    });
+
+    const hasMore = messages.length > safeLimit;
+    const visibleMessages = messages.slice(0, safeLimit);
+    const items = await this.mapWithConcurrency(
+      visibleMessages,
+      5,
+      (message) => this.toChatMessageResponse(message),
+    );
+
+    return {
+      items,
+      hasMore,
+      nextCursor: hasMore
+        ? visibleMessages[visibleMessages.length - 1]?.uuid || null
         : null,
-      vaccineNotifyLogCount: vaccineNotifyLogCountMap.get(u.id) || 0,
-    }));
+    };
+  }
+
+  private async getVaccineNotifyLogCountMap(
+    userIds: number[],
+  ): Promise<Map<number, number>> {
+    const countMap = new Map<number, number>();
+    if (userIds.length === 0) {
+      return countMap;
+    }
+
+    const vaccineNotifyLogCounts =
+      await this.prisma.vaccineNotifySendLog.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: userIds },
+          childId: { not: null },
+          child: { isNot: null },
+        },
+        _count: {
+          _all: true,
+        },
+      });
+
+    vaccineNotifyLogCounts.forEach((count) => {
+      countMap.set(count.userId, count._count._all);
+    });
+    return countMap;
+  }
+
+  private async getChatRoomsByUserIds(
+    userIds: number[],
+  ): Promise<ChatRoomSummary[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.chatRoom.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true, uuid: true, title: true, userId: true },
+    });
+  }
+
+  private async getDirectConsultationStatsMap(
+    userIds: number[],
+  ): Promise<Map<number, CountDateStats>> {
+    const statsMap = new Map<number, CountDateStats>();
+    if (userIds.length === 0) {
+      return statsMap;
+    }
+
+    const stats = await this.prisma.consultation.groupBy({
+      by: ['userId'],
+      where: { userId: { in: userIds } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+
+    stats.forEach((stat) => {
+      if (stat.userId) {
+        statsMap.set(stat.userId, {
+          count: stat._count._all,
+          latestAt: stat._max.createdAt,
+        });
+      }
+    });
+    return statsMap;
+  }
+
+  private async getRoomConsultationStatsMap(
+    chatRooms: ChatRoomSummary[],
+  ): Promise<Map<number, CountDateStats>> {
+    const statsMap = new Map<number, CountDateStats>();
+    if (chatRooms.length === 0) {
+      return statsMap;
+    }
+
+    const roomUserMap = new Map(chatRooms.map((room) => [room.id, room.userId]));
+    const stats = await this.prisma.consultation.groupBy({
+      by: ['chatRoomId'],
+      where: {
+        userId: null,
+        chatRoomId: { in: chatRooms.map((room) => room.id) },
+      },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+
+    stats.forEach((stat) => {
+      if (!stat.chatRoomId) {
+        return;
+      }
+      const userId = roomUserMap.get(stat.chatRoomId);
+      if (!userId) {
+        return;
+      }
+      this.addStats(statsMap, userId, stat._count._all, stat._max.createdAt);
+    });
+    return statsMap;
+  }
+
+  private async getChatMessageStatsMap(
+    chatRooms: ChatRoomSummary[],
+  ): Promise<Map<number, CountDateStats>> {
+    const statsMap = new Map<number, CountDateStats>();
+    if (chatRooms.length === 0) {
+      return statsMap;
+    }
+
+    const roomUserMap = new Map(chatRooms.map((room) => [room.id, room.userId]));
+    const stats = await this.prisma.chatRoomMessage.groupBy({
+      by: ['chatRoomId'],
+      where: {
+        chatRoomId: { in: chatRooms.map((room) => room.id) },
+        isDeleted: false,
+      },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+
+    stats.forEach((stat) => {
+      const userId = roomUserMap.get(stat.chatRoomId);
+      if (!userId) {
+        return;
+      }
+      this.addStats(statsMap, userId, stat._count._all, stat._max.createdAt);
+    });
+    return statsMap;
+  }
+
+  private mergeStatsMaps(
+    primary: Map<number, CountDateStats>,
+    secondary: Map<number, CountDateStats>,
+  ): Map<number, CountDateStats> {
+    const merged = new Map<number, CountDateStats>(primary);
+    secondary.forEach((stats, userId) => {
+      this.addStats(merged, userId, stats.count, stats.latestAt);
+    });
+    return merged;
+  }
+
+  private addStats(
+    statsMap: Map<number, CountDateStats>,
+    userId: number,
+    count: number,
+    latestAt: Date | null,
+  ): void {
+    const current = statsMap.get(userId) || { count: 0, latestAt: null };
+    statsMap.set(userId, {
+      count: current.count + count,
+      latestAt:
+        latestAt && (!current.latestAt || latestAt > current.latestAt)
+          ? latestAt
+          : current.latestAt,
+    });
+  }
+
+  private async toChatMessageResponse(
+    message: any,
+  ): Promise<ChatMessageResponseDto> {
+    const sender = this.resolveSender(message);
+    const attachments = await this.mapWithConcurrency(
+      (message.ChatRoomAttachment || []) as ChatAttachmentRecord[],
+      5,
+      (attachment) => this.toChatAttachmentResponse(attachment),
+    );
+
+    return {
+      uuid: message.uuid,
+      chatRoomUuid: message.chatRoom.uuid,
+      chatRoomTitle: message.chatRoom.title,
+      content: message.content,
+      messageType: message.messageType,
+      senderType: sender.senderType,
+      senderName: sender.senderName,
+      attachments,
+      createdAt: message.createdAt,
+    };
+  }
+
+  private async toChatAttachmentResponse(
+    attachment: ChatAttachmentRecord,
+  ): Promise<ChatAttachmentResponseDto> {
+    const downloadUrl = await this.resolveAttachmentDownloadUrl(attachment);
+    return {
+      uuid: attachment.uuid,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      fileType: attachment.fileType,
+      attachmentType: attachment.attachmentType,
+      status: attachment.status,
+      downloadUrl,
+      downloadUrlExpires: attachment.downloadUrlExpires,
+    };
+  }
+
+  private async resolveAttachmentDownloadUrl(
+    attachment: ChatAttachmentRecord,
+  ): Promise<string | null> {
+    if (attachment.status !== 'uploaded') {
+      return null;
+    }
+
+    const now = new Date();
+    if (
+      attachment.downloadUrl &&
+      attachment.downloadUrlExpires &&
+      attachment.downloadUrlExpires > now
+    ) {
+      return attachment.downloadUrl;
+    }
+
+    if (!attachment.storagePath) {
+      return attachment.downloadUrl;
+    }
+
+    try {
+      const signedUrl = await this.attachmentUrlService.generateReadUrl(
+        attachment.storagePath,
+      );
+      await this.prisma.chatRoomAttachment.update({
+        where: { id: attachment.id },
+        data: {
+          downloadUrl: signedUrl.downloadUrl,
+          downloadUrlExpires: signedUrl.expiresAt,
+        },
+      });
+      return signedUrl.downloadUrl;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to refresh attachment URL ${attachment.uuid}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    const results: R[] = [];
+    for (let i = 0; i < items.length; i += concurrency) {
+      const chunk = items.slice(i, i + concurrency);
+      const chunkResults = await Promise.all(chunk.map(mapper));
+      results.push(...chunkResults);
+    }
+    return results;
+  }
+
+  private resolveSender(message: any): {
+    senderType: string;
+    senderName: string;
+  } {
+    if (message.senderType === 'user') {
+      return {
+        senderType: 'user',
+        senderName: this.getUserDisplayName(message.senderUser),
+      };
+    }
+
+    if (message.senderType === 'consultant') {
+      return {
+        senderType: 'consultant',
+        senderName: message.senderConsultant?.name || '諮詢師',
+      };
+    }
+
+    return {
+      senderType: message.senderType || 'system',
+      senderName: '系統',
+    };
+  }
+
+  private getUserDisplayName(
+    user: { name: string | null; content: unknown } | null,
+  ): string {
+    const content = user?.content as Record<string, any> | null;
+    return user?.name || content?.profile?.displayName || '使用者';
   }
 
   async findVaccineNotifyLogs(): Promise<VaccineNotifyLogResponseDto[]> {

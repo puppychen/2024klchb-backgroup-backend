@@ -18,6 +18,33 @@ enum Role {
   user
 }
 
+enum ConsultantLevel {
+  observer
+  junior
+  mid
+  senior
+}
+
+enum ConsultationStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+}
+
+enum AttachmentStatus {
+  pending
+  uploaded
+  failed
+}
+
+enum AttachmentType {
+  image
+  audio
+  video
+  document
+}
+
 model Admin {
   id        Int      @id @default(autoincrement())
   uuid      String   @unique @default(uuid()) @db.Uuid
@@ -33,26 +60,29 @@ model Admin {
 }
 
 model User {
-  id              Int               @id @default(autoincrement())
-  uuid            String            @unique @default(uuid()) @db.Uuid
-  lineId          String            @unique @map("line_id")
-  name            String?
-  pictureUrl      String?           @map("picture_url")
-  content         Json?
-  sourceKeyword   String?           @map("source_keyword")
-  sourceKeywordAt DateTime?         @map("source_keyword_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+  id                      Int               @id @default(autoincrement())
+  uuid                    String            @unique @default(uuid()) @db.Uuid
+  lineId                  String            @unique @map("line_id")
+  name                    String?
+  pictureUrl              String?           @map("picture_url")
+  content                 Json?
+  sourceKeyword           String?           @map("source_keyword")
+  sourceKeywordAt         DateTime?         @map("source_keyword_at")
+  chimeAppInstanceUserArn String?           @map("chime_app_instance_user_arn")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @default(now()) @updatedAt @map("updated_at")
   //
-  Consultation    Consultation[]
-  Message         Message[]
-  InviteLine      InviteLine[]
-  Children        Children[]
-  VaccineNotify   VaccineNotify[]
-  VaccineNotifySendLog VaccineNotifySendLog[]
-  Note            Note[]
-  NoteAccessToken    NoteAccessToken[]
-  SourceKeywordLog   SourceKeywordLog[]
+  Consultation            Consultation[]
+  Message                 Message[]
+  InviteLine              InviteLine[]
+  Children                Children[]
+  VaccineNotify           VaccineNotify[]
+  VaccineNotifySendLog    VaccineNotifySendLog[]
+  Note                    Note[]
+  NoteAccessToken         NoteAccessToken[]
+  SourceKeywordLog        SourceKeywordLog[]
+  ChatRoom                ChatRoom[]
+  ChatRoomMessage         ChatRoomMessage[]
 
   @@map("users")
 }
@@ -75,25 +105,120 @@ model Children {
 }
 
 model Consultation {
-  id             Int      @id @default(autoincrement())
-  uuid           String   @unique @default(uuid()) @db.Uuid
-  user           User?    @relation(fields: [userId], references: [id])
-  userId         Int?     @map("user_id")
-  lineName       String?  @map("line_name")
+  id             Int                @id @default(autoincrement())
+  uuid           String             @unique @default(uuid()) @db.Uuid
+  user           User?              @relation(fields: [userId], references: [id])
+  userId         Int?               @map("user_id")
+  chatRoomId     Int?               @map("chat_room_id")
+  chatRoom       ChatRoom?          @relation(fields: [chatRoomId], references: [id])
+  lineName       String?            @map("line_name")
   name           String?
   phone          String?
   address        String?
-  childName      String?  @map("child_name")
-  yearSelected   String?  @map("year_selected")
+  childName      String?            @map("child_name")
+  yearSelected   String?            @map("year_selected")
   weight         String?
-  primaryMedical String?  @map("primary_medical")
-  topicSelected  String?  @map("topic_selected")
+  primaryMedical String?            @map("primary_medical")
+  topicSelected  String?            @map("topic_selected")
   content        String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+  formData       Json?              @map("form_data")
+  status         ConsultationStatus @default(pending)
+  submittedAt    DateTime?          @map("submitted_at")
+  startedAt      DateTime?          @map("started_at")
+  completedAt    DateTime?          @map("completed_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at")
 
   @@index([userId], name: "consultations_user_id_index")
+  @@index([chatRoomId], name: "consultations_chat_room_id_index")
+  @@index([status], name: "consultations_status_index")
   @@map("consultations")
+}
+
+model Consultant {
+  id                      Int               @id @default(autoincrement())
+  uuid                    String            @unique @db.Uuid
+  username                String            @unique
+  password                String
+  name                    String
+  email                   String?
+  level                   ConsultantLevel   @default(junior)
+  isActive                Boolean           @default(true) @map("is_active")
+  chimeAppInstanceUserArn String?           @map("chime_app_instance_user_arn")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @default(now()) @updatedAt @map("updated_at")
+  ChatRoomMessage         ChatRoomMessage[]
+
+  @@map("consultants")
+}
+
+model ChatRoom {
+  id                 Int                  @id @default(autoincrement())
+  uuid               String               @unique @db.Uuid
+  title              String?
+  userId             Int                  @map("user_id")
+  user               User                 @relation(fields: [userId], references: [id])
+  chimeChannelArn    String?              @map("chime_channel_arn")
+  isActive           Boolean              @default(true) @map("is_active")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at")
+  ChatRoomMessage    ChatRoomMessage[]
+  ChatRoomAttachment ChatRoomAttachment[]
+  Consultation       Consultation[]
+
+  @@index([userId], name: "chat_rooms_user_id_index")
+  @@index([chimeChannelArn], name: "chat_rooms_chime_channel_arn_index")
+  @@map("chat_rooms")
+}
+
+model ChatRoomMessage {
+  id                 Int                  @id @default(autoincrement())
+  uuid               String               @unique @db.Uuid
+  chatRoomId         Int                  @map("chat_room_id")
+  chatRoom           ChatRoom             @relation(fields: [chatRoomId], references: [id])
+  senderType         String               @map("sender_type")
+  senderUserId       Int?                 @map("sender_user_id")
+  senderUser         User?                @relation(fields: [senderUserId], references: [id])
+  senderConsultantId Int?                 @map("sender_consultant_id")
+  senderConsultant   Consultant?          @relation(fields: [senderConsultantId], references: [id])
+  content            String?
+  messageType        String               @default("text") @map("message_type")
+  chimeMessageId     String?              @map("chime_message_id")
+  isDeleted          Boolean              @default(false) @map("is_deleted")
+  senderIp           String?              @map("sender_ip") @db.VarChar(45)
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at")
+  ChatRoomAttachment ChatRoomAttachment[]
+
+  @@index([chatRoomId], name: "chat_room_messages_chat_room_id_index")
+  @@index([createdAt], name: "chat_room_messages_created_at_index")
+  @@index([senderUserId], name: "chat_room_messages_sender_user_id_index")
+  @@index([senderConsultantId], name: "chat_room_messages_sender_consultant_id_index")
+  @@index([chatRoomId, isDeleted, createdAt], name: "chat_room_messages_room_deleted_created_index")
+  @@map("chat_room_messages")
+}
+
+model ChatRoomAttachment {
+  id                 Int              @id @default(autoincrement())
+  uuid               String           @unique @db.Uuid
+  chatRoomId         Int              @map("chat_room_id")
+  chatRoom           ChatRoom         @relation(fields: [chatRoomId], references: [id])
+  messageId          Int?             @map("message_id")
+  message            ChatRoomMessage? @relation(fields: [messageId], references: [id])
+  fileName           String           @map("file_name")
+  fileSize           Int?             @map("file_size")
+  fileType           String?          @map("file_type")
+  attachmentType     AttachmentType   @default(document) @map("attachment_type")
+  storagePath        String?          @map("storage_path")
+  downloadUrl        String?          @map("download_url")
+  downloadUrlExpires DateTime?        @map("download_url_expires")
+  status             AttachmentStatus @default(pending)
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  @@index([chatRoomId], name: "chat_room_attachments_chat_room_id_index")
+  @@index([messageId], name: "chat_room_attachments_message_id_index")
+  @@map("chat_room_attachments")
 }
 
 model Facility {

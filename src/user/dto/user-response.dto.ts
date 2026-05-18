@@ -105,6 +105,22 @@ export class UserResponseDto {
   @Expose()
   vaccineNotifyLogCount: number;
 
+  @ApiProperty({ description: '諮詢筆數', required: false })
+  @Expose()
+  consultationCount?: number;
+
+  @ApiProperty({ description: '最新諮詢時間', nullable: true, required: false })
+  @Expose()
+  latestConsultationAt?: Date | null;
+
+  @ApiProperty({ description: '對話訊息筆數', required: false })
+  @Expose()
+  chatMessageCount?: number;
+
+  @ApiProperty({ description: '最新對話訊息時間', nullable: true, required: false })
+  @Expose()
+  latestChatMessageAt?: Date | null;
+
   @ApiProperty({ description: '建立時間' })
   @Expose()
   createdAt: Date;

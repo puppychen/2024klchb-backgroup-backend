@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -14,6 +16,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import {
@@ -24,6 +27,7 @@ import {
   UserResponseDto,
   NoteResponseDto,
   VaccineNotifyLogResponseDto,
+  ChatMessagesPageResponseDto,
 } from './dto';
 import { JwtAdminGuard } from '../auth/jwt-admin.guard';
 
@@ -75,6 +79,45 @@ export class UserController {
   @Get(':uuid/vaccine-notify-logs')
   async findUserVaccineNotifyLogs(@Param('uuid') uuid: string) {
     return this.userService.findUserVaccineNotifyLogs(uuid);
+  }
+
+  @ApiOperation({ summary: '取得指定用戶的對話訊息記錄' })
+  @ApiParam({ name: 'uuid', description: '用戶 UUID' })
+  @ApiQuery({
+    name: 'limit',
+    description: '每頁筆數，最高 100',
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'before',
+    description: '載入此訊息 UUID 之前的更早訊息',
+    required: false,
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '成功取得用戶對話訊息記錄',
+    type: ChatMessagesPageResponseDto,
+  })
+  @ApiResponse({ status: 404, description: '找不到用戶' })
+  @Get(':uuid/chat-messages')
+  async findUserChatMessages(
+    @Param('uuid') uuid: string,
+    @Query('limit') limit: string | undefined,
+    @Query('before') before: string | undefined,
+    @Req() req: any,
+  ) {
+    const parsedLimit = Number.parseInt(limit || '100', 10);
+    const safeLimit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 100;
+    return this.userService.findUserChatMessages(
+      uuid,
+      req.user.uuid,
+      safeLimit,
+      before,
+    );
   }
 
   @ApiOperation({ summary: '根據 UUID 取得單一用戶資料' })
