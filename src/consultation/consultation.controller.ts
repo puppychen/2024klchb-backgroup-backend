@@ -44,28 +44,30 @@ export class ConsultationController {
     return {
       uuid: consultation.uuid,
       userUuid: consultation.user?.uuid,
-      lineName: consultation.lineName,
+      lineName: consultation.lineName || '',
       name: this.anonymizeName(consultation.name),
       phone: this.anonymizePhone(consultation.phone),
-      address: consultation.address,
+      address: consultation.address || '',
       childName: this.anonymizeName(consultation.childName),
-      yearSelected: consultation.yearSelected,
-      weight: consultation.weight,
-      primaryMedical: consultation.primaryMedical,
-      topicSelected: consultation.topicSelected,
-      content: consultation.content,
+      yearSelected: consultation.yearSelected || '',
+      weight: consultation.weight || '',
+      primaryMedical: consultation.primaryMedical || '',
+      topicSelected: consultation.topicSelected || '',
+      content: consultation.content || '',
       createdAt: consultation.createdAt,
       updatedAt: consultation.updatedAt,
     };
   }
 
-  private anonymizeName(name: string): string {
-    if (!name || name.length < 2) return name;
+  private anonymizeName(name: string | null): string {
+    if (!name) return '';
+    if (name.length < 2) return name;
     return name[0] + 'O'.repeat(name.length - 1);
   }
 
-  private anonymizePhone(phone: string): string {
-    if (!phone || phone.length < 3) return phone;
+  private anonymizePhone(phone: string | null): string {
+    if (!phone) return '';
+    if (phone.length < 3) return phone;
     return phone.slice(0, 2) + '*'.repeat(phone.length - 4) + phone.slice(-2);
   }
 }
