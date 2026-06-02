@@ -14,6 +14,7 @@ export class Consultation {
   primaryMedical: string;
   topicSelected: string;
   content: string;
+  formData?: unknown;
   createdAt: Date;
   updatedAt: Date;
 }

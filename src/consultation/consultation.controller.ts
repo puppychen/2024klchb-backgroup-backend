@@ -16,6 +16,7 @@ interface ConsultationResponse {
   primaryMedical: string;
   topicSelected: string;
   content: string;
+  formData?: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,8 +35,12 @@ export class ConsultationController {
   }
 
   @Get(':uuid')
-  async findOne(@Param('uuid') uuid: string): Promise<Consultation> {
-    return this.consultationService.findOne(uuid);
+  async findOne(
+    @Param('uuid') uuid: string,
+  ): Promise<ConsultationResponse | null> {
+    const consultation = await this.consultationService.findOne(uuid);
+    // list/detail 一致：detail 也走同一 transform（含 formData、userUuid、匿名化）
+    return consultation ? this.transformConsultation(consultation) : null;
   }
 
   private transformConsultation(
@@ -54,6 +59,8 @@ export class ConsultationController {
       primaryMedical: consultation.primaryMedical || '',
       topicSelected: consultation.topicSelected || '',
       content: consultation.content || '',
+      // 幼兒專責醫師（form_data；list 與 detail 一致帶出）
+      formData: consultation.formData ?? null,
       createdAt: consultation.createdAt,
       updatedAt: consultation.updatedAt,
     };

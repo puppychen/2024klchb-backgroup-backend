@@ -22,6 +22,15 @@ export class ConsultationService {
   }
 
   async findOne(uuid: string): Promise<Consultation | null> {
-    return this.prisma.consultation.findUnique({ where: { uuid } });
+    return this.prisma.consultation.findUnique({
+      where: { uuid },
+      include: {
+        user: {
+          select: {
+            uuid: true,
+          },
+        },
+      },
+    });
   }
 }
