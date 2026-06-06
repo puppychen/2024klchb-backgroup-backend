@@ -83,8 +83,36 @@ model User {
   SourceKeywordLog        SourceKeywordLog[]
   ChatRoom                ChatRoom[]
   ChatRoomMessage         ChatRoomMessage[]
+  ActivitySubmission      ActivitySubmission[]
 
   @@map("users")
+}
+
+model ActivitySubmission {
+  id                    Int      @id @default(autoincrement())
+  uuid                  String   @unique @default(uuid()) @db.Uuid
+  user                  User?    @relation(fields: [userId], references: [id])
+  userId                Int?     @map("user_id")
+  lineId                String   @map("line_id")
+  activityCode          String   @map("activity_code")
+  identity              String
+  dueDate               String?  @map("due_date")
+  babyBirth             String?  @map("baby_birth")
+  pediatricianStatus    String?  @map("pediatrician_status")
+  pediatricianClinic    Json?    @map("pediatrician_clinic")
+  proofImageStoragePath String?  @map("proof_image_storage_path")
+  formData              Json?    @map("form_data")
+  profileSyncStatus     String?  @map("profile_sync_status")
+  profileSyncError      String?  @map("profile_sync_error")
+  linePushStatus        String?  @map("line_push_status")
+  linePushError         String?  @map("line_push_error")
+  submittedAt           DateTime @default(now()) @map("submitted_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([userId], name: "activity_submissions_user_id_index")
+  @@index([activityCode], name: "activity_submissions_activity_code_index")
+  @@map("activity_submissions")
 }
 
 model Children {

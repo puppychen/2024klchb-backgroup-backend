@@ -35,7 +35,7 @@ export class AttachmentUrlService {
       this.logger.warn(
         `Failed to generate attachment read URL: ${error.message}`,
       );
-      throw new BadRequestException('無法生成附件下載連結');
+      throw new BadRequestException(`無法生成附件下載連結：${error.message}`);
     }
   }
 
@@ -45,20 +45,35 @@ export class AttachmentUrlService {
   }
 
   private getOrCreateFirebaseApp(): admin.app.App {
-    const existingApp = admin.apps.find((app) => app?.name === FIREBASE_APP_NAME);
+    const existingApp = admin.apps.find(
+      (app) => app?.name === FIREBASE_APP_NAME,
+    );
     if (existingApp) {
       return existingApp;
     }
 
-    const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
-    const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY');
-    const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
-    const storageBucket = this.configService.get<string>(
-      'FIREBASE_STORAGE_BUCKET',
-    );
+    // 非保留字優先（Firebase Functions 禁用 FIREBASE_ 前綴）；FIREBASE_* 為相容 fallback
+    const projectId =
+      this.configService.get<string>('STORAGE_PROJECT_ID') ||
+      this.configService.get<string>('FIREBASE_PROJECT_ID');
+    const privateKey =
+      this.configService.get<string>('STORAGE_PRIVATE_KEY') ||
+      this.configService.get<string>('FIREBASE_PRIVATE_KEY');
+    const clientEmail =
+      this.configService.get<string>('STORAGE_CLIENT_EMAIL') ||
+      this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
+    const storageBucket =
+      this.configService.get<string>('STORAGE_BUCKET') ||
+      this.configService.get<string>('FIREBASE_STORAGE_BUCKET');
 
     if (!projectId || !privateKey || !clientEmail || !storageBucket) {
-      throw new BadRequestException('Firebase Storage 未初始化');
+      const mark = (v?: string) => (v ? 'OK' : 'MISSING');
+      throw new BadRequestException(
+        `Storage 設定未讀到 → STORAGE_PROJECT_ID:${mark(projectId)} / ` +
+          `STORAGE_PRIVATE_KEY:${mark(privateKey)} / ` +
+          `STORAGE_CLIENT_EMAIL:${mark(clientEmail)} / ` +
+          `STORAGE_BUCKET:${mark(storageBucket)}`,
+      );
     }
 
     return admin.initializeApp(

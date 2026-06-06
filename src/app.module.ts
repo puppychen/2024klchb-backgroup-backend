@@ -8,6 +8,7 @@ import { ConsultationModule } from './consultation/consultation.module';
 import { FacilityModule } from './facility/facility.module';
 import { UserModule } from './user/user.module';
 import { SourceKeywordLogModule } from './source-keyword-log/source-keyword-log.module';
+import { ActivityModule } from './activity/activity.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SourceKeywordLogModule } from './source-keyword-log/source-keyword-log.
     FacilityModule,
     UserModule,
     SourceKeywordLogModule,
+    ActivityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
