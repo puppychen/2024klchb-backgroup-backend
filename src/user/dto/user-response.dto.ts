@@ -117,7 +117,11 @@ export class UserResponseDto {
   @Expose()
   chatMessageCount?: number;
 
-  @ApiProperty({ description: '最新對話訊息時間', nullable: true, required: false })
+  @ApiProperty({
+    description: '最新對話訊息時間',
+    nullable: true,
+    required: false,
+  })
   @Expose()
   latestChatMessageAt?: Date | null;
 

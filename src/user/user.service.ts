@@ -121,15 +121,12 @@ export class UserService {
     }
 
     const userIds = users.map((u) => u.id);
-    const [
-      vaccineNotifyLogCountMap,
-      chatRooms,
-      directConsultationStats,
-    ] = await Promise.all([
-      this.getVaccineNotifyLogCountMap(userIds),
-      this.getChatRoomsByUserIds(userIds),
-      this.getDirectConsultationStatsMap(userIds),
-    ]);
+    const [vaccineNotifyLogCountMap, chatRooms, directConsultationStats] =
+      await Promise.all([
+        this.getVaccineNotifyLogCountMap(userIds),
+        this.getChatRoomsByUserIds(userIds),
+        this.getDirectConsultationStatsMap(userIds),
+      ]);
     const [roomConsultationStats, chatMessageStats] = await Promise.all([
       this.getRoomConsultationStatsMap(chatRooms),
       this.getChatMessageStatsMap(chatRooms),
@@ -139,35 +136,37 @@ export class UserService {
       roomConsultationStats,
     );
 
-    return users
-      .map((u) => {
-        const userConsultationStats = consultationStats.get(u.id);
-        const userChatMessageStats = chatMessageStats.get(u.id);
+    return (
+      users
+        .map((u) => {
+          const userConsultationStats = consultationStats.get(u.id);
+          const userChatMessageStats = chatMessageStats.get(u.id);
 
-        return {
-          ...u,
-          sourceName: u.sourceKeyword
-            ? sourceNameMap.get(u.sourceKeyword) || null
-            : null,
-          vaccineNotifyLogCount: vaccineNotifyLogCountMap.get(u.id) || 0,
-          consultationCount: userConsultationStats?.count || 0,
-          latestConsultationAt: userConsultationStats?.latestAt || null,
-          chatMessageCount: userChatMessageStats?.count || 0,
-          latestChatMessageAt: userChatMessageStats?.latestAt || null,
-        };
-      })
-      // TODO: 用戶量大時改為 DB-level ORDER BY；目前 findAll 已 load 全部用戶含
-      // Children / Note，in-memory sort 不額外增加負擔。
-      .sort((a, b) => {
-        const latestA = a.latestConsultationAt?.getTime() || null;
-        const latestB = b.latestConsultationAt?.getTime() || null;
-        if (latestA !== latestB) {
-          if (latestA === null) return 1;
-          if (latestB === null) return -1;
-          return latestB - latestA;
-        }
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      });
+          return {
+            ...u,
+            sourceName: u.sourceKeyword
+              ? sourceNameMap.get(u.sourceKeyword) || null
+              : null,
+            vaccineNotifyLogCount: vaccineNotifyLogCountMap.get(u.id) || 0,
+            consultationCount: userConsultationStats?.count || 0,
+            latestConsultationAt: userConsultationStats?.latestAt || null,
+            chatMessageCount: userChatMessageStats?.count || 0,
+            latestChatMessageAt: userChatMessageStats?.latestAt || null,
+          };
+        })
+        // TODO: 用戶量大時改為 DB-level ORDER BY；目前 findAll 已 load 全部用戶含
+        // Children / Note，in-memory sort 不額外增加負擔。
+        .sort((a, b) => {
+          const latestA = a.latestConsultationAt?.getTime() || null;
+          const latestB = b.latestConsultationAt?.getTime() || null;
+          if (latestA !== latestB) {
+            if (latestA === null) return 1;
+            if (latestB === null) return -1;
+            return latestB - latestA;
+          }
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        })
+    );
   }
 
   async findUserChatMessages(
@@ -260,10 +259,8 @@ export class UserService {
 
     const hasMore = messages.length > safeLimit;
     const visibleMessages = messages.slice(0, safeLimit);
-    const items = await this.mapWithConcurrency(
-      visibleMessages,
-      5,
-      (message) => this.toChatMessageResponse(message),
+    const items = await this.mapWithConcurrency(visibleMessages, 5, (message) =>
+      this.toChatMessageResponse(message),
     );
 
     return {
@@ -349,7 +346,9 @@ export class UserService {
       return statsMap;
     }
 
-    const roomUserMap = new Map(chatRooms.map((room) => [room.id, room.userId]));
+    const roomUserMap = new Map(
+      chatRooms.map((room) => [room.id, room.userId]),
+    );
     const stats = await this.prisma.consultation.groupBy({
       by: ['chatRoomId'],
       where: {
@@ -381,7 +380,9 @@ export class UserService {
       return statsMap;
     }
 
-    const roomUserMap = new Map(chatRooms.map((room) => [room.id, room.userId]));
+    const roomUserMap = new Map(
+      chatRooms.map((room) => [room.id, room.userId]),
+    );
     const stats = await this.prisma.chatRoomMessage.groupBy({
       by: ['chatRoomId'],
       where: {
@@ -685,7 +686,7 @@ export class UserService {
     return match ? match[1] : null;
   }
 
-  private static readonly BACKFILL_BATCH_LIMIT = 15;
+  private static readonly BACKFILL_BATCH_LIMIT = 5;
 
   /**
    * 對 name 為 null 的使用者，補回 LINE 名稱。

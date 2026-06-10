@@ -23,7 +23,13 @@ import { RolesGuard } from './roles.guard';
       }),
     }),
   ],
-  providers: [AuthService, PrismaService, JwtStrategy, JwtAdminGuard, RolesGuard],
+  providers: [
+    AuthService,
+    PrismaService,
+    JwtStrategy,
+    JwtAdminGuard,
+    RolesGuard,
+  ],
   exports: [AuthService, JwtAdminGuard, RolesGuard, JwtModule],
   controllers: [AuthController],
 })
